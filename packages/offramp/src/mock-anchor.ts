@@ -227,13 +227,16 @@ export class MockAnchorOffRamp implements OffRampPort {
     const elapsed = Date.now() - job.createdAt;
     let status = job.status;
     let lastError = job.lastError;
-    if (elapsed >= this.settleAfterMs) {
-      status = this.alwaysFail ? "failed" : "settled";
-      lastError = status === "failed" ? "mock anchor: simulated payout failure" : null;
-    } else if (elapsed >= this.settleAfterMs / 2) {
-      status = "pending";
-    } else {
-      status = "awaiting_transfer";
+    // A terminal job never moves again: the anchor does not un-settle a payout.
+    if (status !== "settled" && status !== "failed") {
+      if (elapsed >= this.settleAfterMs) {
+        status = this.alwaysFail ? "failed" : "settled";
+        lastError = status === "failed" ? "mock anchor: simulated payout failure" : null;
+      } else if (elapsed >= this.settleAfterMs / 2) {
+        status = "pending";
+      } else {
+        status = "awaiting_transfer";
+      }
     }
 
     if (status !== job.status) {

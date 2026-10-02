@@ -6,6 +6,31 @@ import { FakeOffRampStateRepository } from "./fake-state";
 const USDC = { code: "USDC", issuer: "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5" };
 
 describe("MockAnchorOffRamp", () => {
+  it("never moves a settled or failed job back to an earlier state", async () => {
+    for (const terminal of ["settled", "failed"] as const) {
+      const state = new FakeOffRampStateRepository();
+      // a long settle window: by the clock this job is still "awaiting_transfer"
+      const offramp = new MockAnchorOffRamp({ state, settleAfterMs: 60_000 });
+      const quote = await offramp.quote({
+        linkId: "lnk_t",
+        sourceAsset: USDC,
+        sourceAmount: "10",
+        targetCurrency: "NGN",
+      });
+      const { jobId } = await offramp.initiate({
+        linkId: "lnk_t",
+        quoteId: quote.quoteId,
+        payout: { currency: "NGN", fields: {} },
+      });
+      expect((await offramp.status(jobId)).status).toBe("awaiting_transfer");
+
+      await state.updateJob(jobId, { status: terminal });
+
+      expect((await offramp.status(jobId)).status).toBe(terminal);
+      expect((await state.getJob(jobId))?.status).toBe(terminal);
+    }
+  });
+
   it("quotes, initiates, and settles after settleAfterMs", async () => {
     const state = new FakeOffRampStateRepository();
     const offramp = new MockAnchorOffRamp({ state, settleAfterMs: 0 });
