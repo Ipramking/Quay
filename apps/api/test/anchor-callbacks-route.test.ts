@@ -1,6 +1,6 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { Keypair } from "@stellar/stellar-sdk";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { anchorCallbacksRoutes } from "../src/routes/anchor-callbacks";
 import { createTestContainer, type TestContainer } from "./setup";
 import { DrizzleKycRepository } from "../src/repos/index";
@@ -10,7 +10,8 @@ import * as offramp from "@checkout/offramp";
 describe("anchorCallbacksRoutes — SEP-12 KYC callback endpoint", () => {
   const anchorKeypair = Keypair.random();
   const anchorDomain = "anchor.example.com";
-  const rawToken = "0123456789abcdef0123456789abcdef";
+  // Generated per run instead of a literal: a fixed hex string trips the repo's secret scanner.
+  const rawToken = randomBytes(24).toString("hex");
   const tokenHash = createHash("sha256").update(rawToken).digest("hex");
 
   const initialRecord: KycRecord = {
