@@ -102,13 +102,16 @@ export function anchorCallbacksRoutes(c: Container): Hono {
     }
     const parsed = parsedBody.data;
 
-    if (parsed.id && record.customerId && parsed.id !== record.customerId) {
+    // A callback is only ever registered for a record that already has a customer
+    // id, so one without it cannot be legitimate; and the body id, when sent, must
+    // be that customer's. The anchor must never get to choose which id we store.
+    if (!record.customerId || (parsed.id && parsed.id !== record.customerId)) {
       return ctx.json({ error: "customer_id_mismatch" }, 400);
     }
 
     const updatedRecord: KycRecord = {
       ...record,
-      customerId: parsed.id ?? record.customerId,
+      customerId: record.customerId,
       status: toKycStatus(parsed.status),
       requiredFields: toFieldSpecs(parsed.fields),
       providedFieldStatus: toProvidedFieldStatus(parsed.provided_fields),

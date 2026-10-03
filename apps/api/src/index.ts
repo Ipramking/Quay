@@ -40,13 +40,17 @@ async function main(): Promise<void> {
   // matters more here than in a typical API: the settlement watcher runs in
   // this same process, so an OOM does not merely return 502 for a minute — it
   // stops payments being marked paid until the instance comes back.
-  app.use(
-    "*",
-    bodyLimit({
-      maxSize: 64 * 1024,
-      onError: (ctx) => ctx.json({ error: "payload_too_large" }, 413),
-    }),
-  );
+  const defaultBodyLimit = bodyLimit({
+    maxSize: 64 * 1024,
+    onError: (ctx) => ctx.json({ error: "payload_too_large" }, 413),
+  });
+  app.use("*", async (ctx, next) => {
+    // /seller/kyc/files enforces its own configurable KYC_MAX_UPLOAD_BYTES limit
+    if (ctx.req.path === "/seller/kyc/files") {
+      return next();
+    }
+    return defaultBodyLimit(ctx, next);
+  });
   app.use(
     "*",
     cors({
@@ -85,6 +89,15 @@ async function main(): Promise<void> {
     max: env.rateLimitStrictMax,
     store: rateLimitStore,
     keyFor: (ctx) => `anchor-auth:${ctx.get("seller").id}`,
+  });
+
+  // Anchor SEP-12 callbacks are unauthenticated and, once the token matches,
+  // trigger an outbound stellar.toml fetch. Bucket by client IP on the strict budget.
+  const anchorCallbackLimit = rateLimit({
+    windowMs: env.rateLimitStrictWindowMs,
+    max: env.rateLimitStrictMax,
+    store: rateLimitStore,
+    trustProxyHops: env.trustProxyHops,
   });
 
   // Liveness: the process is up and answering HTTP at all.
@@ -186,6 +199,7 @@ async function main(): Promise<void> {
   app.route("/.well-known", wellKnownRoutes(container.auth.stellarToml));
   app.route("/seller/kyc", kycRoutes(container));
   app.route("/seller/anchor-auth", anchorAuthRoutes(container, anchorAuthLimit));
+  app.use("/anchor-callbacks/*", anchorCallbackLimit);
   app.route("/anchor-callbacks", anchorCallbacksRoutes(container));
   app.route("/demo", demoRoutes(container));
   // Operator-only off-ramp telemetry (issue #20, 3.8). The routes gate

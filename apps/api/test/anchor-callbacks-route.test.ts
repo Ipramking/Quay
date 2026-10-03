@@ -192,6 +192,25 @@ describe("anchorCallbacksRoutes — SEP-12 KYC callback endpoint", () => {
     container.client.close();
   });
 
+  it("refuses a callback for a record with no stored customer id: the anchor does not get to choose it", async () => {
+    const { app, container, kycRepo } = await harness();
+    await kycRepo.save({ ...initialRecord, customerId: null });
+    const body = JSON.stringify({ id: "chosen_by_anchor", status: "ACCEPTED" });
+    const host = "api.example.com";
+    const sigHeader = makeSignatureHeader(anchorKeypair, Math.floor(Date.now() / 1000), host, body);
+
+    const res = await app.request(`/sep12/${anchorDomain}/${rawToken}`, {
+      method: "POST",
+      headers: { host, signature: sigHeader, "content-type": "application/json" },
+      body,
+    });
+
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: "customer_id_mismatch" });
+    expect((await kycRepo.get("sel_1", anchorDomain))?.customerId).toBeNull();
+    container.client.close();
+  });
+
   describe("hardening", () => {
     const host = "api.example.com";
 

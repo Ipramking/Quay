@@ -242,6 +242,7 @@ export async function createContainer(): Promise<Container> {
     telemetry: telemetryRepo,
     health: anchorHealth,
     correlation: env.correlation,
+    interactiveTimeoutMs: env.offrampInteractiveTimeoutMs,
     logger,
   });
 
