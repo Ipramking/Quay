@@ -104,8 +104,8 @@ export function anchorCallbacksRoutes(c: Container): Hono {
 
     // A callback is only ever registered for a record that already has a customer
     // id, so one without it cannot be legitimate; and the body id, when sent, must
-    // be that customer's. The anchor must never get to choose which id we store.
-    if (!record.customerId || (parsed.id && parsed.id !== record.customerId)) {
+    // be present and be that customer's. The anchor must never get to choose which id we store.
+    if (!record.customerId || !parsed.id || parsed.id !== record.customerId) {
       return ctx.json({ error: "customer_id_mismatch" }, 400);
     }
 
